@@ -82,6 +82,35 @@ def test_course_enroll_student_empty() -> None:
     assert s3 not in c.students
 
 
+def test_course_all_answered() -> None:
+    """A test for all_answered() in class Course."""
+    s1 = Student(1, 'A')
+    s2 = Student(2, 'B')
+    c = Course('CS')
+    c.enroll_students([s1, s2])
+    q1 = YesNoQuestion(2, 'F')
+    q2 = YesNoQuestion(3, 'K')
+    a1 = Answer(True)
+    a2 = Answer(False)
+    survey = Survey([q1, q2])
+    s1.set_answer(q1, a1)
+    s1.set_answer(q2, a2)
+    s2.set_answer(q1, a1)
+    s2.set_answer(q2, a2)
+    assert c.all_answered(survey) is True
+
+
+def test_course_get_students() -> None:
+    """A test for get_students() in class Course."""
+    s1 = Student(1, 'A')
+    s2 = Student(2, 'B')
+    s3 = Student(3, 'C')
+    c = Course('CS')
+    c.enroll_students([s3, s1, s2])
+    test_tup = c.get_students()
+    assert test_tup == (s1, s2, s3)
+
+
 if __name__ == '__main__':
     import pytest
     pytest.main(['tests.py'])

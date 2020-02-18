@@ -159,9 +159,12 @@ class Course:
 
         Hint: the sort_students function might be useful
         """
-        sort_students(self.students, 'id')
-        copy = self.students[:]
-        return tuple(copy)
+        return_tuple = ()
+        temp_list = []
+        for student in self.students:
+            temp_list.append(student)
+        temp_list = sort_students(temp_list, 'id')
+        return tuple(temp_list)
 
 
 if __name__ == '__main__':
