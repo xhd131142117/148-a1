@@ -131,7 +131,11 @@ class Course:
         do not add any of the students in <students> to the course.
         """
         for student in students:
-            if student not in self.students:
+            skip = False
+            for enrolled in self.students:
+                if enrolled.id == student.id:
+                    skip = True
+            if not skip and student.name != '':
                 self.students.append(student)
 
     def all_answered(self, survey: Survey) -> bool:
