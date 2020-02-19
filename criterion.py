@@ -82,21 +82,24 @@ class HomogeneousCriterion(Criterion):
         """
         acc1 = 0
         acc2 = 0
+        valid = []
+        for answer in answers:
+            valid.append(answer.is_valid(question))
+        if False in valid:
+            raise InvalidAnswerError
         if len(answers) == 1:
             return 1.0
         else:
             for answer in answers:
-                if question.validate_answer(answer) is False:
-                    raise InvalidAnswerError
                 lst = answers[:]
                 lst.remove(answer)
                 for sub in lst:
                     acc1 += question.get_similarity(answer, sub)
-                    acc2 += 1
+                    acc2 += 1.0
         return acc1 / acc2
 
 
-class HeterogeneousCriterion(HomogeneousCriterion):
+class HeterogeneousCriterion(Criterion):
     """ A criterion used to evaluate the quality of a group based on the group
     members' answers for a given question.
 
@@ -121,10 +124,22 @@ class HeterogeneousCriterion(HomogeneousCriterion):
         === Precondition ===
         len(answers) > 0
         """
+        acc1 = 0
+        acc2 = 0
         if len(answers) == 1:
             return 0.0
-        else:
-            return 1.0 - super().score_answers(question, answers)
+        valid = []
+        for answer in answers:
+            valid.append(answer.is_valid(question))
+        if False in valid:
+            raise InvalidAnswerError
+        for answer in answers:
+            lst = answers[:]
+            lst.remove(answer)
+            for sub in lst:
+                acc1 += question.get_similarity(answer, sub)
+                acc2 += 1
+        return 1.0 - acc1 / acc2
 
 
 class LonelyMemberCriterion(Criterion):
@@ -151,18 +166,20 @@ class LonelyMemberCriterion(Criterion):
         === Precondition ===
         len(answers) > 0
         """
+        valid = []
         for answer in answers:
-            if not question.validate_answer(answer):
-                raise InvalidAnswerError
-            else:
-                lst = answers[:]
-                lst.remove(answer)
-                flag = True
-                for sub in lst:
-                    if sub.content == answer.content:
-                        flag = False
-                if flag:
-                    return 0.0
+            valid.append(answer.is_valid(question))
+        if False in valid:
+            raise InvalidAnswerError
+        for answer in answers:
+            lst = answers[:]
+            lst.remove(answer)
+            flag = True
+            for sub in lst:
+                if sub.content == answer.content:
+                    flag = False
+            if flag:
+                return 0.0
         return 1.0
 
 

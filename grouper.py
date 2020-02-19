@@ -26,11 +26,10 @@ well as a grouping (a group of groups).
 """
 from __future__ import annotations
 import random
-from typing import TYPE_CHECKING, List, Any
-from course import sort_students
+from typing import TYPE_CHECKING, List, Any, Optional
+from course import sort_students, Course, Student
 if TYPE_CHECKING:
     from survey import Survey
-    from course import Course, Student
 
 
 def slice_list(lst: List[Any], n: int) -> List[List[Any]]:
@@ -50,13 +49,19 @@ def slice_list(lst: List[Any], n: int) -> List[List[Any]]:
     True
     """
     acc = []
-    for i in range((len(lst) // n)):
-        new_lst = []
-        new_lst.extend(lst[(i * n):(i * n) + n])
-        acc.append(new_lst)
-    new_list = lst[((len(lst) // n) * n):]
-    acc.append(new_list)
-    return acc
+    if n == 0:
+        return []
+    elif not lst:
+        return []
+    else:
+        for i in range((len(lst) // n)):
+            new_lst = []
+            new_lst.extend(lst[(i * n):(i * n) + n])
+            acc.append(new_lst)
+        new_list = lst[((len(lst) // n) * n):]
+        if not new_list == []:
+            acc.append(new_list)
+        return acc
 
 
 def windows(lst: List[Any], n: int) -> List[List[Any]]:
@@ -78,7 +83,7 @@ def windows(lst: List[Any], n: int) -> List[List[Any]]:
         new_lst = []
         try:
             new_lst.extend(lst[i:i + n])
-        except:
+        except IndexError:
             return acc
         acc.append(new_lst)
     return acc
@@ -146,9 +151,9 @@ class AlphaGrouper(Grouper):
         students = sort_students(list(course.get_students()), 'name')
         lst = slice_list(students, self.group_size)
         grouping = Grouping()
-        for group in lst:
-            g = Group(group)
-            grouping.add_group(g)
+        for sub in lst:
+            group = Group(sub)
+            grouping.add_group(group)
         return grouping
 
 
@@ -181,10 +186,34 @@ class RandomGrouper(Grouper):
         random.shuffle(students)
         lst = slice_list(students, self.group_size)
         grouping = Grouping()
-        for group in lst:
-            g = Group(group)
-            grouping.add_group(g)
+        for sub in lst:
+            group1 = Group(sub)
+            grouping.add_group(group1)
         return grouping
+
+
+def _get_max_student(lst1: List[Student], lst2: List[Student],
+                     survey: Survey) -> Optional[Student]:
+    """
+    Return the student in lst1 such that when moved him to lst2, the
+    score of survey will be the highest compare to other students in lst1
+
+    Precondition: len(lst1) > 0 and len(lst2) > 0
+    """
+    if len(lst1) == 0:
+        return None
+    scores = {}
+    for student in lst1:
+        lst2.append(student)
+        new_score = survey.score_students(lst2)
+        if new_score not in scores.keys():
+            scores[new_score] = [student]
+        else:
+            scores[new_score].append(student)
+        lst2.remove(student)
+    max_students = scores[max(tuple(scores.keys()))]
+    sort_students(max_students, 'id')
+    return max_students[0]
 
 
 class GreedyGrouper(Grouper):
@@ -226,46 +255,22 @@ class GreedyGrouper(Grouper):
         The final group created may have fewer than N members if that is
         required to make sure all students in <course> are members of a group.
         """
-
-        """
-        students = tuple(course.get_students())
-        all_students = list(students)
-        all_students = sort_students(all_students, 'id')
+        students = list((course.get_students()))
         grouping = Grouping()
         lst = []
-        in_progress = True
-        num_left = self.group_size
-        while in_progress:
-            this_group = [all_students[0]]
-            num_left -= 1
-            all_students = all_students[1:]
-            while num_left > 0:
-                group_score = 0
-                for st in this_group:
-                    group_score += survey.score_students(st)
-                high_score = group_score
-                high_id = None
-                for st in all_students:
-                    this_score = survey.score_students(st)
-                    new_score = this_score + group_score
-                    if new_score > high_score:
-                        high_id = st.id
-                        high_score = new_score
-                for st in all_students:
-                    if st.id == high_id:
-                        this_group.append(st)
-                        num_left -= 1
-            grouping.add_group(Group(this_group))
-            for st in this_group:
-                all_students.remove(st)
-            if len(all_students) == 0:
-                in_progress = False
-            num_left = self.group_size
+        while students:
+            sub_list = [students[0]]
+            students.pop(0)
+            while len(sub_list) < self.group_size and _get_max_student(
+                    students, sub_list, survey):
+                sub_list.append(
+                    _get_max_student(students, sub_list, survey))
+                students.remove(_get_max_student(students, sub_list, survey))
+            lst.append(sub_list)
+        for sub in lst:
+            group = Group(sub)
+            grouping.add_group(group)
         return grouping
-        """
-
-
-
 
 
 class WindowGrouper(Grouper):
@@ -310,50 +315,47 @@ class WindowGrouper(Grouper):
         after repeating steps 1 and 2 above, put the remaining students into a
         new group.
         """
-        return_groups = []
-        n = self.group_size
-        # list of all student
-        student = course.get_students()
-        all_student = []
-        for s in student:
-            all_student.append(s)
-        # list of windows
-        w = windows(list(course.get_students()), n)
-        # grouping in progress
-        in_progress = True
-        while in_progress:
-            # calculate window scores
-            w_score = []
-            for group in w:
-                w_score.append(survey.score_students(group))
-            # a counter
-            flag = 0
-            # w_score = [20, 40, 60, 80]
-            # len(w_score) = 4
-            # we want to stop at 60 i.e. w_score[2]
-            while flag < len(w_score) - 1:
-                if w_score[flag] > w_score[flag] + 1:
-                    return_groups.append(Group(w[flag]))
-                    break
-                else:
-                    flag += 1
-            # flag reached last window, add this group directly
-            if flag == len(w_score) - 1:
-                return_groups.append(Group(w[-1]))
-            # remove all students that has a group
-            for group in return_groups:
-                for student in group.get_members():
-                    all_student.remove(student)
-            # get a new list of windows
-            w = windows(list(all_student), n)
-            # left only one window, add to groups directly
-            if len(w) == 1:
-                return_groups.append(Group(w[0]))
-                in_progress = False
-        return_grouping = Grouping()
-        for group in return_groups:
-            return_grouping.add_group(group)
-        return return_grouping
+        students = list(course.get_students())
+        grouping = Grouping()
+        while len(students) > self.group_size:
+            lst_windows = windows(students, self.group_size)
+            if len(lst_windows) == 1:
+                grouping.add_group(Group(lst_windows[0]))
+            else:
+                self._window_helper(lst_windows, survey, students, grouping)
+        if students:
+            group = Group(students)
+            grouping.add_group(group)
+        return grouping
+
+    def _window_helper(self, lst_windows: list, survey: Survey,
+                       students: list, grouping: Grouping) -> None:
+        '''
+        For each window in order, calculate the current window's score as
+        well as the score of the next window in the list. If the current
+        window's score is greater than or equal to the next window's score,
+        make a group out of the students in current window and start again at
+        step 1. If the current window is the last window, compare it to the
+        first window instead.
+        '''
+        i = 0
+        found = False
+        while i < len(lst_windows) and not found:
+            window = lst_windows[i]
+            score = survey.score_students(window)
+            if i == len(lst_windows) - 1:
+                next_score = survey.score_students(lst_windows[0])
+            else:
+                next_score = survey.score_students(lst_windows[i + 1])
+            if score >= next_score:
+                found = True
+                group = Group(window)
+                for member in window:
+                    students.remove(member)
+                grouping.add_group(group)
+                lst_windows = windows(students, self.group_size)
+            else:
+                i += 1
 
 
 class Group:
@@ -382,8 +384,8 @@ class Group:
         Return True iff this group contains a member with the same id
         as <member>.
         """
-        for student in self._members:
-            if student.id == member.id:
+        for sub in self._members:
+            if sub.id == member.id:
                 return True
         return False
 
@@ -394,18 +396,17 @@ class Group:
 
         You can choose the precise format of this string.
         """
-        return_str = ''
-        for student in self._members:
-            return_str = return_str + student.name + ', '
-        return_str = return_str[:-2]
-        return return_str
+        acc = ''
+        for sub in self._members:
+            acc = acc + sub.name + ' '
+        return acc
 
     def get_members(self) -> List[Student]:
         """ Return a list of members in this group. This list should be a
         shallow copy of the self._members attribute.
         """
-        new_cpoy = self._members[:]
-        return new_cpoy
+        lst = self._members[:]
+        return lst
 
 
 class Grouping:
@@ -438,19 +439,13 @@ class Grouping:
 
         You can choose the precise format of this string.
         """
-        return_str = ''
+        acc = ''
         for group in self._groups:
-            # print by group
-            students = group.get_members()
-            return_str = return_str + '['
-            for student in students:
-                return_str += student.name
-                return_str += ', '
-            # remove excess ', ' and add new line
-            # [s1, s2, s3, ] -> [s1, s2, s3]
-            return_str = return_str[:-2]
-            return_str = return_str + ']\n'
-        return return_str
+            lst = group.get_members()
+            for i in lst:
+                acc = acc + i.name
+            acc = acc + '\n'
+        return acc
 
     def add_group(self, group: Group) -> bool:
         """
@@ -459,12 +454,11 @@ class Grouping:
         Iff adding <group> to this grouping would violate a representation
         invariant don't add it and return False instead.
         """
-        if group.__len__() == 0:
+        if len(group.get_members()) == 0:
             return False
-        sts = group.get_members()
-        for st in sts:
-            for exist_group in self._groups:
-                if st in exist_group:
+        for member in group.get_members():
+            for sub in self._groups:
+                if member in sub:
                     return False
         self._groups.append(group)
         return True
@@ -474,8 +468,8 @@ class Grouping:
         This list should be a shallow copy of the self._groups
         attribute.
         """
-        copy = self._groups[:]
-        return copy
+        lst = self._groups[:]
+        return lst
 
 
 if __name__ == '__main__':

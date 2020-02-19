@@ -48,7 +48,7 @@ class Question:
 
     def __init__(self, id_: int, text: str) -> None:
         """ Initialize a question with the text <text> """
-        self.id = id
+        self.id = id_
         self.text = text
 
     def __str__(self) -> str:
@@ -101,8 +101,7 @@ class MultipleChoiceQuestion(Question):
         No two elements in <options> are the same string
         <options> contains at least two elements
         """
-        self.id = id_
-        self.text = text
+        Question.__init__(self, id_, text)
         self._options = []
         self._options.extend(options)
 
@@ -113,7 +112,10 @@ class MultipleChoiceQuestion(Question):
 
         You can choose the precise format of this string.
         """
-        return self.text
+        acc = ''
+        for sub in self._options:
+            acc = acc + str(sub)
+        return self.text + acc
 
     def validate_answer(self, answer: Answer) -> bool:
         """
@@ -122,7 +124,10 @@ class MultipleChoiceQuestion(Question):
         An answer is valid if its content is one of the possible answers to this
         question.
         """
-        return answer.content in self._options
+        if answer is None:
+            return False
+        else:
+            return answer.content in self._options
 
     def get_similarity(self, answer1: Answer, answer2: Answer) -> float:
         """
@@ -164,8 +169,7 @@ class NumericQuestion(Question):
         === Precondition ===
         min_ < max_
         """
-        self.id = id_
-        self.text = text
+        Question.__init__(self, id_, text)
         self._max = max_
         self._min = min_
         self._options = []
@@ -179,15 +183,21 @@ class NumericQuestion(Question):
 
         You can choose the precise format of this string.
         """
-        return self.text
+        return self.text + 'possible answers can be any integer between' \
+            + str(self._min) + 'and' + str(self._max) + '(inclusive)'
 
     def validate_answer(self, answer: Answer) -> bool:
         """
         Return True iff the content of <answer> is an integer between the
         minimum and maximum (inclusive) possible answers to this question.
         """
-        return answer.content in self._options
-
+        if answer.content is None:
+            return False
+        elif isinstance(answer.content, int) \
+                and self._max >= answer.content >= self._min:
+            return True
+        else:
+            return False
 
     def get_similarity(self, answer1: Answer, answer2: Answer) -> float:
         """
@@ -213,10 +223,13 @@ class NumericQuestion(Question):
         === Precondition ===
         <answer1> and <answer2> are both valid answers to this question
         """
-        difference = abs(abs(answer1.content) - abs(answer2.content))
-        difference = difference / (self._max - self._min)
-        difference = 1.0 - difference
-        return difference
+        if self.validate_answer(answer1) and self.validate_answer(answer2):
+            difference = abs(answer1.content - answer2.content)
+            difference = difference / (self._max - self._min)
+            difference = 1.0 - difference
+            return difference
+        else:
+            return None
 
 
 class YesNoQuestion(Question):
@@ -237,8 +250,7 @@ class YesNoQuestion(Question):
         """
         Initialize a question with the text <text> and id <id>.
         """
-        self.id = id_
-        self.text = text
+        Question.__init__(self, id_, text)
 
     def __str__(self) -> str:
         """
@@ -247,7 +259,7 @@ class YesNoQuestion(Question):
 
         You can choose the precise format of this string.
         """
-        return self.text
+        return self.text + 'the possible answers are boolean type'
 
     def validate_answer(self, answer: Answer) -> bool:
         """
@@ -293,8 +305,7 @@ class CheckboxQuestion(Question):
         No two elements in <options> are the same string
         <options> contains at least two elements
         """
-        self.id = id_
-        self.text = text
+        Question.__init__(self, id_, text)
         self._options = options
 
     def __str__(self) -> str:
@@ -304,7 +315,10 @@ class CheckboxQuestion(Question):
 
         You can choose the precise format of this string.
         """
-        return self.text
+        acc = ''
+        for i in self._options:
+            acc = acc + str(i)
+        return self.text + acc
 
     def validate_answer(self, answer: Answer) -> bool:
         """
@@ -313,13 +327,13 @@ class CheckboxQuestion(Question):
         An answer is valid iff its content is a non-empty list containing
         unique possible answers to this question.
         """
-        if not answer.content:
+        if (not isinstance(answer.content, list)) or not answer.content:
             return False
         else:
-            for ans in answer.content:
-                if ans not in self._options:
+            for sub in answer.content:
+                if answer.content.count(sub) > 1 or sub not in self._options:
                     return False
-        return True
+            return True
 
     def get_similarity(self, answer1: Answer, answer2: Answer) -> float:
         """
@@ -340,15 +354,14 @@ class CheckboxQuestion(Question):
         """
         common = []
         unique = []
-        for item in answer1.content:
-            if item in answer2.content:
-                common.append(item)
-        for item in answer1.content:
-            if item not in unique:
-                unique.append(item)
-        for item in answer2.content:
-            if item not in unique:
-                unique.append(item)
+        for i in answer1.content:
+            if i in answer2.content:
+                common.append(i)
+        for i in answer1.content:
+            unique.append(i)
+        for i in answer2.content:
+            unique.append(i)
+        unique = list(dict.fromkeys(unique))
         return len(common) / len(unique)
 
 
@@ -437,7 +450,7 @@ class Survey:
         """
         acc = ''
         for question in list(self._questions.values()):
-            acc = acc + question.text + '\n'
+            acc = acc + str(question) + '\n'
         return acc
 
     def get_questions(self) -> List[Question]:
@@ -482,8 +495,8 @@ class Survey:
         and return False instead.
         """
         flag = False
-        for sub in self._lst_questions:
-            if sub.id == question.id:
+        for sub in list(self._questions.keys()):
+            if sub == question.id:
                 flag = True
         if flag is False:
             return False
@@ -500,8 +513,8 @@ class Survey:
         and return False instead.
         """
         flag = False
-        for sub in self._lst_questions:
-            if sub.id == question.id:
+        for sub in list(self._questions.keys()):
+            if sub == question.id:
                 flag = True
         if flag is False:
             return False
@@ -530,25 +543,22 @@ class Survey:
         All students in <students> have an answer to all questions in this
             survey
         """
-        if self._lst_questions.__len__() == 0:
-            return 0.0
-        list_of_score = []
-        for question in self._lst_questions:
-            this_score = 0
+        overall_score = 0.0
+        for question in list(self._questions.values()):
+            criterion = self._get_criterion(question)
+            weight = self._get_weight(question)
+            answers = []
+            for student in students:
+                answers.append(student.get_answer(question))
             try:
-                this_criterion = self._get_criterion(question)
-                this_weight = self._get_weight(question)
-                for student in students:
-                    answer = student.get_answer(question)
-                    this_score += this_criterion.score_answers(question, answer)
-                this_score = this_score * this_weight
-                list_of_score.append(this_score)
-            except:
+                overall_score += \
+                    criterion.score_answers(question, answers) * weight
+            except InvalidAnswerError:
                 return 0.0
-        sum = 0
-        for score in list_of_score:
-            sum += score
-        return sum / len(list_of_score)
+        if len(self._questions.keys()) == 0:
+            return 0.0
+        else:
+            return overall_score / len(self._questions.keys())
 
     def score_grouping(self, grouping: Grouping) -> float:
         """ Return a score for <grouping> calculated based on the answers of
@@ -566,16 +576,15 @@ class Survey:
         All students in the groups in <grouping> have an answer to all questions
             in this survey
         """
+        acc1 = 0
+        acc2 = 0
         if grouping.__len__() == 0:
             return 0.0
-        list_of_score = []
-        for group in grouping.get_groups():
-            s = group.get_members()
-            list_of_score.append(self.score_students(s))
-        sum = 0
-        for score in list_of_score:
-            sum += score
-        return sum / len(list_of_score)
+        else:
+            for group in grouping.get_groups():
+                acc1 += self.score_students(group.get_members())
+                acc2 += 1
+        return acc1 / acc2
 
 
 if __name__ == '__main__':

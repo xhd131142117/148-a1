@@ -9,6 +9,7 @@ from grouper import Group, Grouper, GreedyGrouper, AlphaGrouper, Grouping, Windo
 from grouper import slice_list, windows
 SEED_NUMBER = 770
 
+
 def no_public(class_name, instance, public_attrs, public_methods):
     methods = class_name.__dict__
     attrs = instance.__dict__
